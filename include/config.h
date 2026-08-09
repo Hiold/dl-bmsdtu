@@ -2,7 +2,8 @@
 #define CONFIG_H
 
 // BLE 目标设备 MAC 地址（格式：xx:xx:xx:xx:xx:xx）
-#define TARGET_MAC "Neo10Pro"
+#define TARGET_MAC "75:de:9e:b4:f7:43"
+#define TARGET_NAME "Neo10Pro"
 
 // BLE 服务和特征 UUID
 #define SERVICE_UUID "FFE0"

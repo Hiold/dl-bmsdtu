@@ -32,6 +32,7 @@ public:
 private:
     struct ScanCallbacks : public NimBLEAdvertisedDeviceCallbacks {
         void onResult(NimBLEAdvertisedDevice* pDevice) override;
+        void onScanEnd(NimBLEScanResults& results) override;
     };
 
     void setupCharacteristics(NimBLERemoteService* pService);
