@@ -18,6 +18,31 @@ UARTHandler uart;
 static uint32_t scanTimeMs = 5000; /** scan time in milliseconds, 0 = scan forever */
 static NimBLERemoteCharacteristic *pChr = nullptr;
 
+size_t hexStrToBytes(const char* hexStr, uint8_t* bytes, size_t maxLen) {
+    size_t len = strlen(hexStr);
+    if (len % 2 != 0 || len / 2 > maxLen) return 0;
+
+    for (size_t i = 0; i < len / 2; i++) {
+        char high = hexStr[i * 2];
+        char low = hexStr[i * 2 + 1];
+        if (!isxdigit(high) || !isxdigit(low)) return 0;
+
+        uint8_t h = isdigit(high) ? high - '0' : toupper(high) - 'A' + 10;
+        uint8_t l = isdigit(low) ? low - '0' : toupper(low) - 'A' + 10;
+        bytes[i] = (h << 4) | l;
+    }
+    return len / 2;
+}
+
+void bytesToHexStr(const uint8_t* bytes, size_t len, char* hexStr) {
+    static const char hexChars[] = "0123456789ABCDEF";
+    for (size_t i = 0; i < len; i++) {
+        hexStr[i * 2] = hexChars[bytes[i] >> 4];
+        hexStr[i * 2 + 1] = hexChars[bytes[i] & 0x0F];
+    }
+    hexStr[len * 2] = '\0';
+}
+
 /**  None of these are required as they will be handled by the library with defaults. **
  **                       Remove as you see fit for your needs                        */
 class ClientCallbacks : public NimBLEClientCallbacks
@@ -102,7 +127,11 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
   str += ", Value = " + std::string((char *)pData, length);
   Serial.printf("%s\n", str.c_str());
 
-  uart.write(pData, length);
+  if (length > 0) {
+    char hexStr[length * 2 + 1];
+    bytesToHexStr(pData, length, hexStr);
+    uart.write((uint8_t*)hexStr, strlen(hexStr));
+  }
 }
 
 /** Handles the provisioning of clients and connects / interfaces with the server */
@@ -359,16 +388,19 @@ void loop()
   /** Loop here until we find a device we want to connect to */
   delay(10);
 
-  const size_t BRIDGE_BUF_SIZE = 512;
-  static uint8_t bridgeBuf[BRIDGE_BUF_SIZE];
-  size_t uartAvail = uart.available();
-  if (uartAvail > 0) {
-      size_t readLen = min(uartAvail, BRIDGE_BUF_SIZE);
-      size_t actualLen = uart.read(bridgeBuf, readLen);
-      if (actualLen > 0 && pChr && pChr->canWrite()) {
-          pChr->writeValue((uint8_t*)bridgeBuf, actualLen);
-      }
-  }
+    const size_t BRIDGE_BUF_SIZE = 256;
+    static uint8_t bridgeBuf[BRIDGE_BUF_SIZE];
+    static char hexStrBuf[BRIDGE_BUF_SIZE * 2 + 1];
+    size_t uartAvail = uart.available();
+    if (uartAvail > 0) {
+        size_t readLen = min(uartAvail, (size_t)(BRIDGE_BUF_SIZE * 2));
+        size_t actualLen = uart.read((uint8_t*)hexStrBuf, readLen);
+        hexStrBuf[actualLen] = '\0';
+        size_t byteLen = hexStrToBytes(hexStrBuf, bridgeBuf, BRIDGE_BUF_SIZE);
+        if (byteLen > 0 && pChr && pChr->canWrite()) {
+            pChr->writeValue((uint8_t*)bridgeBuf, byteLen);
+        }
+    }
 
   if (doConnect)
   {
