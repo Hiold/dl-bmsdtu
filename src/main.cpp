@@ -9,7 +9,7 @@ BLEGateway bleGateway;
 StateMachine stateMachine;
 
 void setup() {
-    Serial.begin(UART_BAUD);
+    Serial.begin(115200);
     delay(100);
     Serial.println("\n[BOOT] BLE Gateway starting...");
     Serial.print("[BOOT] Target MAC: ");
@@ -17,11 +17,14 @@ void setup() {
     Serial.print("[BOOT] Target Service: ");
     Serial.println(SERVICE_UUID);
 
+    uart.begin(UART_BAUD);
+    Serial.println("[BOOT] UART1 initialized for DTU communication");
+
     bleGateway.init();
 
     bleGateway.registerNotifyCallback([](const uint8_t* data, size_t len) {
         uart.write(data, len);
-        Serial.print("[UART] Forwarded BLE->UART, len=");
+        Serial.print("[UART] BLE->UART, len=");
         Serial.println(len);
     });
 
@@ -56,7 +59,7 @@ void loop() {
             if (uart.available() > 0) {
                 size_t readLen = uart.read(buf, sizeof(buf));
                 bleGateway.write(buf, readLen);
-                Serial.print("[UART] Forwarded UART->BLE, len=");
+                Serial.print("[UART] UART->BLE, len=");
                 Serial.println(readLen);
             }
         }
