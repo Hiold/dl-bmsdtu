@@ -31,6 +31,7 @@ void BLEGateway::startScan() {
     pScan->setActiveScan(true);
     pScan->setInterval(100);
     pScan->setWindow(50);
+    pScan->setDuplicateFilter(0);
     pScan->start(30, false);
 
     _scanning = true;
@@ -48,13 +49,13 @@ void BLEGateway::stopScan() {
 
 void BLEGateway::ScanCallbacks::onResult(const NimBLEAdvertisedDevice* pDevice) {
     String name = pDevice->getName().c_str();
-    Serial.print("[BLE] Found: addr=");
+    Serial.print("[BLE] onResult: addr=");
     Serial.print(pDevice->getAddress().toString().c_str());
     Serial.print(" name='");
     Serial.print(name.length() > 0 ? name.c_str() : "(none)");
     Serial.println("'");
 
-    if (name == TARGET_NAME) {
+    if (name.length() > 0 && name.indexOf(TARGET_NAME) >= 0) {
         BLEGateway* pGateway = BLEGateway::getInstance();
 
         if (pGateway->_targetFound) {
@@ -71,6 +72,43 @@ void BLEGateway::ScanCallbacks::onResult(const NimBLEAdvertisedDevice* pDevice) 
         Serial.println(pGateway->_targetAddrType);
 
         pGateway->attemptConnection();
+    }
+}
+
+void BLEGateway::ScanCallbacks::onDiscovered(const NimBLEAdvertisedDevice* pDevice) {
+    String name = pDevice->getName().c_str();
+    Serial.print("[BLE] onDiscovered: addr=");
+    Serial.print(pDevice->getAddress().toString().c_str());
+    Serial.print(" name='");
+    Serial.print(name.length() > 0 ? name.c_str() : "(none)");
+    Serial.println("'");
+
+    if (name.length() > 0 && name.indexOf(TARGET_NAME) >= 0) {
+        BLEGateway* pGateway = BLEGateway::getInstance();
+
+        if (pGateway->_targetFound) {
+            return;
+        }
+
+        pGateway->_targetFound = true;
+        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress().toString(), 0);
+        pGateway->_targetAddrType = 0;
+        Serial.println("[BLE] Target found (onDiscovered)!");
+        Serial.print("[BLE] Address: ");
+        Serial.println(pGateway->_targetAddress.toString().c_str());
+
+        pGateway->attemptConnection();
+    }
+}
+
+void BLEGateway::ScanCallbacks::onScanEnd(const NimBLEScanResults& results, int reason) {
+    Serial.print("[BLE] Scan ended, reason=");
+    Serial.println(reason);
+    BLEGateway* pGateway = BLEGateway::getInstance();
+    if (!pGateway->_transparent && !pGateway->_connected) {
+        Serial.println("[BLE] Restarting scan...");
+        delay(1000);
+        pGateway->startScan();
     }
 }
 
