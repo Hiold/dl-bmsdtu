@@ -46,6 +46,7 @@ private:
     ScanCallbacks _scanCallbacks;
 
     NimBLEAddress _targetAddress;
+    uint8_t _targetAddrType = 0;
     NimBLEClient* _pClient = nullptr;
     NimBLERemoteCharacteristic* _pWriteChar = nullptr;
     NimBLERemoteCharacteristic* _pNotifyChar = nullptr;

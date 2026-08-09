@@ -3,7 +3,7 @@
 
 BLEGateway::BLEGateway()
     : _connected(false), _transparent(false), _scanning(false),
-      _targetFound(false), _scanStartTime(0), _notifyCallback(nullptr),
+      _targetFound(false), _targetAddrType(0), _scanStartTime(0), _notifyCallback(nullptr),
       _scanCallbacks(), _pClient(nullptr),
       _pWriteChar(nullptr), _pNotifyChar(nullptr) {}
 
@@ -59,12 +59,13 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
         }
 
         pGateway->_targetFound = true;
-        pGateway->_targetAddress = pDevice->getAddress();
+        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress());
+        pGateway->_targetAddrType = pDevice->getAddressType();
         Serial.println("[BLE] Target found!");
         Serial.print("[BLE] Address: ");
         Serial.println(pGateway->_targetAddress.toString().c_str());
         Serial.print("[BLE] Address type: ");
-        Serial.println(pDevice->getAddressType());
+        Serial.println(pGateway->_targetAddrType);
 
         delay(200);
         pGateway->attemptConnection();
@@ -92,13 +93,16 @@ void BLEGateway::attemptConnection() {
         return;
     }
 
+    NimBLEAddress connectAddr(_targetAddress.toString(), _targetAddrType);
     Serial.print("[BLE] Connecting to: ");
-    Serial.println(_targetAddress.toString().c_str());
+    Serial.println(connectAddr.toString().c_str());
+    Serial.print("[BLE] Address type: ");
+    Serial.println(_targetAddrType);
 
     pClient->setClientCallbacks(this);
     pClient->setConnectTimeout(10);
 
-    if (!pClient->connect(_targetAddress)) {
+    if (!pClient->connect(connectAddr)) {
         int rc = pClient->getLastError();
         Serial.print("[BLE] Connect failed, rc=");
         Serial.println(rc);
