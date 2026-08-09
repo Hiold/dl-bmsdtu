@@ -81,10 +81,11 @@ void BLEGateway::connectToDevice() {
 }
 
 void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
+    String name = pDevice->getName().c_str();
     Serial.print("[BLE] Found: ");
-    Serial.println(pDevice->getAddress().toString().c_str());
+    Serial.println(name.length() > 0 ? name.c_str() : pDevice->getAddress().toString().c_str());
 
-    if (pDevice->getAddress().toString() == TARGET_MAC) {
+    if (name == TARGET_NAME) {
         Serial.println("[BLE] Target found!");
         BLEGateway* pGateway = BLEGateway::getInstance();
         pGateway->stopScan();
