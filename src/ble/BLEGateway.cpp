@@ -80,6 +80,11 @@ void BLEGateway::attemptConnection() {
     stopScan();
     NimBLEDevice::getScan()->clearResults();
 
+    if (NimBLEDevice::isBonded(_targetAddress)) {
+        Serial.println("[BLE] Deleting existing bond...");
+        NimBLEDevice::deleteBond(_targetAddress);
+    }
+
     NimBLEClient* pClient = NimBLEDevice::getDisconnectedClient();
     if (!pClient) {
         Serial.println("[BLE] Creating new client...");
@@ -92,16 +97,13 @@ void BLEGateway::attemptConnection() {
         return;
     }
 
-    NimBLEAddress connectAddr(_targetAddress.toString(), _targetAddrType);
     Serial.print("[BLE] Connecting to: ");
-    Serial.println(connectAddr.toString().c_str());
-    Serial.print("[BLE] Address type: ");
-    Serial.println(_targetAddrType);
+    Serial.println(_targetAddress.toString().c_str());
 
     pClient->setClientCallbacks(this);
     pClient->setConnectTimeout(10);
 
-    pClient->connect(connectAddr);
+    pClient->connect(_targetAddress);
 
     uint32_t start = millis();
     while (!pClient->isConnected() && millis() - start < 5000) {
@@ -167,7 +169,9 @@ void BLEGateway::attemptConnection() {
 }
 
 void BLEGateway::onConnect(NimBLEClient* pClient) {
-    Serial.println("[BLE] onConnect");
+    Serial.println("[BLE] onConnect callback!");
+    Serial.print("[BLE] Peer: ");
+    Serial.println(pClient->getPeerAddress().toString().c_str());
     _connected = true;
 }
 
