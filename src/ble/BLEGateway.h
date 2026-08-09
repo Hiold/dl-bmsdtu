@@ -33,8 +33,8 @@ public:
 
 private:
     struct ScanCallbacks : public NimBLEScanCallbacks {
-        void onResult(NimBLEAdvertisedDevice* pDevice) override;
-        void onScanEnd(const NimBLEScanResults& scanResults, int reason) override {}
+        void onResult(const NimBLEAdvertisedDevice* pDevice) override;
+        void onScanEnd(const NimBLEScanResults& results, int reason) override {}
     };
 
     void attemptConnection();

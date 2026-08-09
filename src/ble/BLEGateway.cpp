@@ -46,7 +46,7 @@ void BLEGateway::stopScan() {
     _scanning = false;
 }
 
-void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
+void BLEGateway::ScanCallbacks::onResult(const NimBLEAdvertisedDevice* pDevice) {
     String name = pDevice->getName().c_str();
     Serial.print("[BLE] Found: ");
     Serial.println(name.length() > 0 ? name.c_str() : pDevice->getAddress().toString().c_str());
