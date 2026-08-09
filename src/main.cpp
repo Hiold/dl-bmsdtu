@@ -10,7 +10,7 @@ StateMachine stateMachine;
 
 void setup() {
     Serial.begin(115200);
-    delay(100);
+    delay(1000);
     Serial.println("\n[BOOT] BLE Gateway starting...");
     Serial.print("[BOOT] Target: ");
     Serial.println(TARGET_NAME);

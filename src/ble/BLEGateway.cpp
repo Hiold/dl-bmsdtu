@@ -63,7 +63,14 @@ void BLEGateway::attemptConnection() {
     pClient->setConnectionParams(12, 12, 0, 100);
     pClient->setConnectTimeout(15);
 
-    if (pClient->connect(_targetAddress, true)) {
+    pClient->connect(_targetAddress, true);
+    
+    uint32_t start = millis();
+    while (!pClient->isConnected() && millis() - start < 5000) {
+        delay(50);
+    }
+
+    if (pClient->isConnected()) {
         Serial.println("[BLE] Connected!");
         _pClient = pClient;
         _connected = true;
@@ -83,9 +90,9 @@ void BLEGateway::attemptConnection() {
             }
         }
     } else {
-        Serial.println("[BLE] Connection failed, retrying in 3s...");
+        Serial.println("[BLE] Connection timeout, retrying...");
         pClient->disconnect();
-        delay(3000);
+        delay(2000);
         
         Serial.println("[BLE] Retry connection...");
         NimBLEClient* pRetryClient = NimBLEDevice::createClient();
@@ -93,7 +100,14 @@ void BLEGateway::attemptConnection() {
         pRetryClient->setConnectionParams(12, 12, 0, 100);
         pRetryClient->setConnectTimeout(15);
         
-        if (pRetryClient->connect(_targetAddress, true)) {
+        pRetryClient->connect(_targetAddress, true);
+        
+        uint32_t retryStart = millis();
+        while (!pRetryClient->isConnected() && millis() - retryStart < 5000) {
+            delay(50);
+        }
+        
+        if (pRetryClient->isConnected()) {
             Serial.println("[BLE] Connected on retry!");
             _pClient = pRetryClient;
             _connected = true;
@@ -108,7 +122,7 @@ void BLEGateway::attemptConnection() {
                 }
             }
         } else {
-            Serial.println("[BLE] Retry failed, restarting scan...");
+            Serial.println("[BLE] Retry timeout, restarting scan...");
             pRetryClient->disconnect();
             delay(2000);
             startScan();
