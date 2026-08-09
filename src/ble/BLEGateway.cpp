@@ -63,8 +63,10 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
         Serial.println("[BLE] Target found!");
         Serial.print("[BLE] Address: ");
         Serial.println(pGateway->_targetAddress.toString().c_str());
+        Serial.print("[BLE] Address type: ");
+        Serial.println(pDevice->getAddressType());
 
-        delay(500);
+        delay(200);
         pGateway->attemptConnection();
     }
 }
@@ -76,15 +78,15 @@ void BLEGateway::attemptConnection() {
     }
 
     stopScan();
-
     NimBLEDevice::getScan()->clearResults();
 
     NimBLEClient* pClient = NimBLEDevice::getDisconnectedClient();
     if (!pClient) {
+        Serial.println("[BLE] Creating new client...");
         pClient = NimBLEDevice::createClient();
     }
     if (!pClient) {
-        Serial.println("[BLE] Client limit reached");
+        Serial.println("[BLE] Failed to create client");
         delay(2000);
         startScan();
         return;
@@ -94,18 +96,21 @@ void BLEGateway::attemptConnection() {
     Serial.println(_targetAddress.toString().c_str());
 
     pClient->setClientCallbacks(this);
-    pClient->setConnectTimeout(10000);
+    pClient->setConnectTimeout(10);
 
     if (!pClient->connect(_targetAddress)) {
         int rc = pClient->getLastError();
         Serial.print("[BLE] Connect failed, rc=");
         Serial.println(rc);
+        pClient->disconnect();
         delay(2000);
         startScan();
         return;
     }
 
-    Serial.println("[BLE] Connected, discovering service...");
+    Serial.println("[BLE] Connected!");
+    _pClient = pClient;
+    _connected = true;
 
     NimBLERemoteService* pService = pClient->getService(SERVICE_UUID);
     if (!pService) {
@@ -116,36 +121,43 @@ void BLEGateway::attemptConnection() {
         return;
     }
 
-    Serial.println("[BLE] Service found, getting characteristics...");
+    Serial.println("[BLE] Service found");
 
     _pWriteChar = pService->getCharacteristic(CHAR_WRITE_UUID);
     _pNotifyChar = pService->getCharacteristic(CHAR_NOTIFY_UUID);
 
-    if (_pWriteChar) Serial.println("[BLE] FFE1 found");
+    if (_pWriteChar) {
+        Serial.println("[BLE] FFE1 found");
+    } else {
+        Serial.println("[BLE] FFE1 NOT found");
+    }
+
     if (_pNotifyChar) {
         Serial.println("[BLE] FFE2 found, subscribing...");
-        _pNotifyChar->subscribe(true, [this](NimBLERemoteCharacteristic* pChar, uint8_t* pData, size_t length, bool isNotify) {
-            if (_notifyCallback) _notifyCallback(pData, length);
+        bool subResult = _pNotifyChar->subscribe(true, [this](NimBLERemoteCharacteristic* pChar, uint8_t* pData, size_t length, bool isNotify) {
+            if (_notifyCallback) {
+                _notifyCallback(pData, length);
+            }
         });
+        Serial.print("[BLE] Subscribe result: ");
+        Serial.println(subResult ? "success" : "failed");
+    } else {
+        Serial.println("[BLE] FFE2 NOT found");
     }
 
     if (_pWriteChar && _pNotifyChar) {
-        _pClient = pClient;
-        _connected = true;
         _transparent = true;
-        Serial.println("[BLE] === TRANSPARENT MODE ===");
+        Serial.println("[BLE] === TRANSPARENT MODE ACTIVATED ===");
     } else {
-        Serial.println("[BLE] Missing characteristics");
+        Serial.println("[BLE] Transparent mode failed");
         pClient->disconnect();
         delay(2000);
         startScan();
     }
 }
 
-void BLEGateway::setupCharacteristics(NimBLERemoteService* pService) {
-}
-
 void BLEGateway::onConnect(NimBLEClient* pClient) {
+    Serial.println("[BLE] onConnect");
     _connected = true;
 }
 
@@ -173,8 +185,8 @@ void BLEGateway::disconnect() {
 
 bool BLEGateway::write(const uint8_t* data, size_t len) {
     if (!_transparent || !_pWriteChar) return false;
-    _pWriteChar->writeValue(data, len, false);
-    return true;
+    bool result = _pWriteChar->writeValue(data, len, false);
+    return result;
 }
 
 void BLEGateway::registerNotifyCallback(onNotifyCallback callback) {
