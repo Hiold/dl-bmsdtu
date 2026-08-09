@@ -58,7 +58,7 @@ void BLEGateway::ScanCallbacks::onResult(const NimBLEAdvertisedDevice* pDevice) 
     if (name.length() > 0 && name.indexOf(TARGET_NAME) >= 0) {
         BLEGateway* pGateway = BLEGateway::getInstance();
 
-        if (pGateway->_targetFound) {
+        if (pGateway->_targetFound && pGateway->_connected) {
             return;
         }
 
@@ -86,7 +86,7 @@ void BLEGateway::ScanCallbacks::onDiscovered(const NimBLEAdvertisedDevice* pDevi
     if (name.length() > 0 && name.indexOf(TARGET_NAME) >= 0) {
         BLEGateway* pGateway = BLEGateway::getInstance();
 
-        if (pGateway->_targetFound) {
+        if (pGateway->_targetFound && pGateway->_connected) {
             return;
         }
 
@@ -147,15 +147,24 @@ void BLEGateway::attemptConnection() {
         int rc = pClient->getLastError();
         Serial.print("[BLE] Connect failed, rc=");
         Serial.println(rc);
-        pClient->disconnect();
-        delay(2000);
-        startScan();
+
+        if (pClient->isConnected()) {
+            Serial.println("[BLE] Actually connected!");
+            _pClient = pClient;
+            _connected = true;
+            _targetFound = false;
+        } else {
+            pClient->disconnect();
+            delay(2000);
+            startScan();
+        }
         return;
     }
 
     Serial.println("[BLE] Connected!");
     _pClient = pClient;
     _connected = true;
+    _targetFound = false;
 
     const std::vector<NimBLERemoteService*>& services = pClient->getServices();
     Serial.print("[BLE] Services count: ");
@@ -208,6 +217,7 @@ void BLEGateway::attemptConnection() {
 void BLEGateway::onConnect(NimBLEClient* pClient) {
     Serial.println("[BLE] *** onConnect callback! ***");
     _connected = true;
+    _targetFound = false;
 }
 
 bool BLEGateway::onConnParamsUpdateRequest(NimBLEClient* pClient, const ble_gap_upd_params* params) {
@@ -226,6 +236,7 @@ void BLEGateway::onConnectFail(NimBLEClient* pClient, int reason) {
     Serial.print("[BLE] Connect failed, reason=");
     Serial.println(reason);
     _connected = false;
+    _targetFound = false;
 }
 
 void BLEGateway::onDisconnect(NimBLEClient* pClient, int reason) {
@@ -233,6 +244,7 @@ void BLEGateway::onDisconnect(NimBLEClient* pClient, int reason) {
     Serial.println(reason);
     _connected = false;
     _transparent = false;
+    _targetFound = false;
     _pClient = nullptr;
     _pWriteChar = nullptr;
     _pNotifyChar = nullptr;
