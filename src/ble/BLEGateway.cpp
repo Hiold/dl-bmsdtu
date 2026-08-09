@@ -46,90 +46,6 @@ void BLEGateway::stopScan() {
     _scanning = false;
 }
 
-void BLEGateway::attemptConnection() {
-    if (!_targetFound) {
-        Serial.println("[BLE] No target found yet");
-        return;
-    }
-
-    stopScan();
-    delay(500);
-    Serial.print("[BLE] Connecting to: ");
-    Serial.println(_targetAddress.toString().c_str());
-
-    NimBLEClient* pClient = NimBLEDevice::createClient();
-    pClient->setClientCallbacks(this);
-
-    pClient->setConnectionParams(12, 12, 0, 100);
-    pClient->setConnectTimeout(15);
-
-    pClient->connect(_targetAddress, true);
-    
-    uint32_t start = millis();
-    while (!pClient->isConnected() && millis() - start < 5000) {
-        delay(50);
-    }
-
-    if (pClient->isConnected()) {
-        Serial.println("[BLE] Connected!");
-        _pClient = pClient;
-        _connected = true;
-
-        std::vector<NimBLERemoteService*>* pServices = pClient->getServices();
-        if (pServices) {
-            Serial.print("[BLE] Services: ");
-            Serial.println(pServices->size());
-            for (NimBLERemoteService* pService : *pServices) {
-                Serial.print("[BLE]   ");
-                Serial.println(pService->getUUID().toString().c_str());
-                if (pService->getUUID().toString() == SERVICE_UUID) {
-                    Serial.println("[BLE] Service FFE0 found!");
-                    setupCharacteristics(pService);
-                    break;
-                }
-            }
-        }
-    } else {
-        Serial.println("[BLE] Connection timeout, retrying...");
-        pClient->disconnect();
-        delay(2000);
-        
-        Serial.println("[BLE] Retry connection...");
-        NimBLEClient* pRetryClient = NimBLEDevice::createClient();
-        pRetryClient->setClientCallbacks(this);
-        pRetryClient->setConnectionParams(12, 12, 0, 100);
-        pRetryClient->setConnectTimeout(15);
-        
-        pRetryClient->connect(_targetAddress, true);
-        
-        uint32_t retryStart = millis();
-        while (!pRetryClient->isConnected() && millis() - retryStart < 5000) {
-            delay(50);
-        }
-        
-        if (pRetryClient->isConnected()) {
-            Serial.println("[BLE] Connected on retry!");
-            _pClient = pRetryClient;
-            _connected = true;
-            
-            std::vector<NimBLERemoteService*>* pServices = pRetryClient->getServices();
-            if (pServices) {
-                for (NimBLERemoteService* pService : *pServices) {
-                    if (pService->getUUID().toString() == SERVICE_UUID) {
-                        setupCharacteristics(pService);
-                        break;
-                    }
-                }
-            }
-        } else {
-            Serial.println("[BLE] Retry timeout, restarting scan...");
-            pRetryClient->disconnect();
-            delay(2000);
-            startScan();
-        }
-    }
-}
-
 void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
     String name = pDevice->getName().c_str();
     Serial.print("[BLE] Found: ");
@@ -139,26 +55,68 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
         BLEGateway* pGateway = BLEGateway::getInstance();
 
         if (pGateway->_targetFound) {
-            Serial.println("[BLE] Already connecting to target, ignoring");
             return;
         }
 
         pGateway->_targetFound = true;
         pGateway->_targetAddress = pDevice->getAddress();
-        Serial.println("[BLE] Target found! Starting connection...");
+        Serial.println("[BLE] Target found!");
         Serial.print("[BLE] Address: ");
         Serial.println(pGateway->_targetAddress.toString().c_str());
 
-        delay(1000);
+        delay(500);
         pGateway->attemptConnection();
     }
 }
 
-void BLEGateway::setupCharacteristics(NimBLERemoteService* pService) {
-    if (!pService) {
-        Serial.println("[BLE] Service null!");
+void BLEGateway::attemptConnection() {
+    if (!_targetFound) {
+        Serial.println("[BLE] No target found");
         return;
     }
+
+    stopScan();
+
+    NimBLEDevice::getScan()->clearResults();
+
+    NimBLEClient* pClient = NimBLEDevice::getDisconnectedClient();
+    if (!pClient) {
+        pClient = NimBLEDevice::createClient();
+    }
+    if (!pClient) {
+        Serial.println("[BLE] Client limit reached");
+        delay(2000);
+        startScan();
+        return;
+    }
+
+    Serial.print("[BLE] Connecting to: ");
+    Serial.println(_targetAddress.toString().c_str());
+
+    pClient->setClientCallbacks(this);
+    pClient->setConnectTimeout(10000);
+
+    if (!pClient->connect(_targetAddress)) {
+        int rc = pClient->getLastError();
+        Serial.print("[BLE] Connect failed, rc=");
+        Serial.println(rc);
+        delay(2000);
+        startScan();
+        return;
+    }
+
+    Serial.println("[BLE] Connected, discovering service...");
+
+    NimBLERemoteService* pService = pClient->getService(SERVICE_UUID);
+    if (!pService) {
+        Serial.println("[BLE] Service FFE0 not found");
+        pClient->disconnect();
+        delay(2000);
+        startScan();
+        return;
+    }
+
+    Serial.println("[BLE] Service found, getting characteristics...");
 
     _pWriteChar = pService->getCharacteristic(CHAR_WRITE_UUID);
     _pNotifyChar = pService->getCharacteristic(CHAR_NOTIFY_UUID);
@@ -172,9 +130,19 @@ void BLEGateway::setupCharacteristics(NimBLERemoteService* pService) {
     }
 
     if (_pWriteChar && _pNotifyChar) {
+        _pClient = pClient;
+        _connected = true;
         _transparent = true;
         Serial.println("[BLE] === TRANSPARENT MODE ===");
+    } else {
+        Serial.println("[BLE] Missing characteristics");
+        pClient->disconnect();
+        delay(2000);
+        startScan();
     }
+}
+
+void BLEGateway::setupCharacteristics(NimBLERemoteService* pService) {
 }
 
 void BLEGateway::onConnect(NimBLEClient* pClient) {
@@ -183,7 +151,11 @@ void BLEGateway::onConnect(NimBLEClient* pClient) {
 
 void BLEGateway::onDisconnect(NimBLEClient* pClient) {
     Serial.println("[BLE] Disconnected");
-    disconnect();
+    _connected = false;
+    _transparent = false;
+    _pClient = nullptr;
+    _pWriteChar = nullptr;
+    _pNotifyChar = nullptr;
     delay(1000);
     startScan();
 }

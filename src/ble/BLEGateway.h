@@ -20,7 +20,6 @@ public:
     bool init();
     void startScan();
     void stopScan();
-    void connectToDevice();
     void disconnect();
     bool write(const uint8_t* data, size_t len);
     void registerNotifyCallback(onNotifyCallback callback);
@@ -36,7 +35,6 @@ private:
         void onResult(NimBLEAdvertisedDevice* pDevice) override;
     };
 
-    void setupCharacteristics(NimBLERemoteService* pService);
     void attemptConnection();
 
     bool _connected = false;
