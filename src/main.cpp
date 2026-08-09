@@ -10,27 +10,21 @@ StateMachine stateMachine;
 
 void setup() {
     Serial.begin(115200);
-    delay(1000);
+    delay(100);
     Serial.println("\n[BOOT] BLE Gateway starting...");
-    Serial.print("[BOOT] Target MAC: ");
+    Serial.print("[BOOT] Target: ");
     Serial.println(TARGET_MAC);
-    Serial.print("[BOOT] Target Service: ");
-    Serial.println(SERVICE_UUID);
 
     uart.begin(UART_BAUD);
-    Serial.println("[BOOT] UART1 initialized for DTU communication");
-
     bleGateway.init();
+    bleGateway.startScan();
 
     bleGateway.registerNotifyCallback([](const uint8_t* data, size_t len) {
         uart.write(data, len);
-        Serial.print("[UART] BLE->UART, len=");
-        Serial.println(len);
     });
 
     stateMachine.setState(State::SCANNING);
-    bleGateway.connectToDevice();
-    Serial.println("[BOOT] BLE Gateway initialized, waiting for connection...\n");
+    Serial.println("[BOOT] Ready\n");
 }
 
 void loop() {
@@ -39,10 +33,12 @@ void loop() {
 
     static State lastState = State::IDLE;
     if (state != lastState) {
-        Serial.print("[STATE] -> ");
+        Serial.print("[STATE] ");
         Serial.println(stateMachine.stateToString());
         lastState = state;
     }
+
+    static uint32_t lastScanRestart = 0;
 
     switch (state) {
     case State::SCANNING:
@@ -50,6 +46,11 @@ void loop() {
     case State::CONNECTED:
         if (bleGateway.isTransparent()) {
             stateMachine.setState(State::TRANSPARENT);
+            Serial.println("[BLE] Transparent mode active!");
+        } else if (now - lastScanRestart > 35000) {
+            Serial.println("[BLE] Scan timeout, restarting...");
+            bleGateway.startScan();
+            lastScanRestart = now;
         }
         break;
 
@@ -57,20 +58,17 @@ void loop() {
         {
             uint8_t buf[256];
             if (uart.available() > 0) {
-                size_t readLen = uart.read(buf, sizeof(buf));
-                bleGateway.write(buf, readLen);
-                Serial.print("[UART] UART->BLE, len=");
-                Serial.println(readLen);
+                size_t len = uart.read(buf, sizeof(buf));
+                bleGateway.write(buf, len);
             }
         }
         break;
 
     case State::ERROR:
         if (stateMachine.shouldRetry(now)) {
-            Serial.println("[RETRY] Attempting reconnection...");
             stateMachine.setState(State::SCANNING);
-            stateMachine.recordRetryTime(now);
-            bleGateway.connectToDevice();
+            bleGateway.startScan();
+            lastScanRestart = now;
         }
         break;
     }

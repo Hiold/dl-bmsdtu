@@ -18,7 +18,9 @@ public:
     static BLEGateway* getInstance();
 
     bool init();
-    bool connectToDevice();
+    void startScan();
+    void stopScan();
+    void connectToDevice();
     void disconnect();
     bool write(const uint8_t* data, size_t len);
     void registerNotifyCallback(onNotifyCallback callback);
@@ -32,13 +34,14 @@ public:
 private:
     struct ScanCallbacks : public NimBLEAdvertisedDeviceCallbacks {
         void onResult(NimBLEAdvertisedDevice* pDevice) override;
-        void onScanEnd(NimBLEScanResults& results) override;
     };
 
     void setupCharacteristics(NimBLERemoteService* pService);
 
     bool _connected = false;
     bool _transparent = false;
+    bool _scanning = false;
+    uint32_t _scanStartTime = 0;
     onNotifyCallback _notifyCallback;
     ScanCallbacks _scanCallbacks;
 
