@@ -34,9 +34,15 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
         NimBLEAddress addr(pDevice->getAddress());
         if (pClient->connect(addr)) {
             pGateway->_pClient = pClient;
-            NimBLERemoteService* pService = pClient->getServiceByUUID(SERVICE_UUID);
-            if (pService) {
-                pGateway->setupCharacteristics(pService);
+            
+            std::vector<NimBLERemoteService*>* pServices = pClient->getServices();
+            if (pServices) {
+                for (NimBLERemoteService* pService : *pServices) {
+                    if (pService->getUUID().toString() == SERVICE_UUID) {
+                        pGateway->setupCharacteristics(pService);
+                        break;
+                    }
+                }
             }
         }
     }

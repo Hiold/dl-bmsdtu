@@ -2,6 +2,7 @@
 #define BLE_GATEWAY_H
 
 #include <Arduino.h>
+#include <vector>
 #include <NimBLEDevice.h>
 #include <NimBLERemoteCharacteristic.h>
 #include <NimBLERemoteService.h>
