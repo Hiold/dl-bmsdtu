@@ -3,7 +3,7 @@
 
 BLEGateway::BLEGateway()
     : _connected(false), _transparent(false), _notifyCallback(nullptr),
-      _scanCallbacks(), _pDevice(nullptr), _pClient(nullptr),
+      _scanCallbacks(), _pClient(nullptr),
       _pWriteChar(nullptr), _pNotifyChar(nullptr) {}
 
 bool BLEGateway::init() {
@@ -22,33 +22,50 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
     if (pDevice->getAddress().toString() == TARGET_MAC) {
         NimBLEDevice::getScan()->stop();
 
+        BLEGateway* pGateway = BLEGateway::getInstance();
         NimBLEClient* pClient = NimBLEDevice::createClient();
-        pClient->setClientCallbacks(BLEGateway::getInstance());
+        pClient->setClientCallbacks(pGateway);
 
         NimBLEAddress addr(pDevice->getAddress());
         if (pClient->connect(addr)) {
-            pClient->discoverServices();
+            pGateway->_pClient = pClient;
+            pClient->getServiceByUUID(SERVICE_UUID, [pGateway](NimBLERemoteService* pService) {
+                pGateway->setupServiceAndCharacteristics(pService);
+            });
         }
     }
 }
 
+void BLEGateway::setupServiceAndCharacteristics(NimBLERemoteService* pService) {
+    if (!pService) return;
+
+    pService->getCharacteristicByUUID(CHAR_WRITE_UUID, [this](NimBLERemoteCharacteristic* pChar) {
+        if (pChar) {
+            this->_pWriteChar = pChar;
+            this->_pNotifyChar = this->_pWriteChar;
+        }
+    });
+
+    pService->getCharacteristicByUUID(CHAR_NOTIFY_UUID, [this](NimBLERemoteCharacteristic* pChar) {
+        if (pChar) {
+            this->_pNotifyChar = pChar;
+            this->_pWriteChar = this->_pWriteChar ? this->_pWriteChar : pChar;
+            this->_pNotifyChar->subscribe(true, [this](NimBLERemoteCharacteristic* pChar, uint8_t* pData, size_t length, bool isNotify) {
+                if (this->_notifyCallback) {
+                    this->_notifyCallback(pData, length);
+                }
+            });
+            this->_transparent = true;
+        }
+    });
+}
+
 void BLEGateway::onConnect(NimBLEClient* pClient) {
     _connected = true;
-    _pClient = pClient;
 }
 
 void BLEGateway::onDisconnect(NimBLEClient* pClient) {
     disconnect();
-}
-
-void BLEGateway::onServiceDiscoverComplete(NimBLERemoteService* pRemoteService) {
-    handleServiceDiscover(pRemoteService);
-}
-
-void BLEGateway::notifyCallback(NimBLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-    if (_notifyCallback) {
-        _notifyCallback(pData, length);
-    }
 }
 
 void BLEGateway::disconnect() {
@@ -72,27 +89,7 @@ void BLEGateway::registerNotifyCallback(onNotifyCallback callback) {
     _notifyCallback = callback;
 }
 
-void BLEGateway::setTransparent(bool transparent) {
-    _transparent = transparent;
-}
-
 BLEGateway* BLEGateway::getInstance() {
     static BLEGateway instance;
     return &instance;
-}
-
-void BLEGateway::handleServiceDiscover(NimBLERemoteService* pRemoteService) {
-    if (pRemoteService && pRemoteService->getUUID().toString() == SERVICE_UUID) {
-        NimBLERemoteCharacteristic* pWriteChar = pRemoteService->getCharacteristic(CHAR_WRITE_UUID);
-        NimBLERemoteCharacteristic* pNotifyChar = pRemoteService->getCharacteristic(CHAR_NOTIFY_UUID);
-        
-        if (pWriteChar && pNotifyChar) {
-            _pWriteChar = pWriteChar;
-            _pNotifyChar = pNotifyChar;
-            _pNotifyChar->registerForNotify([this](NimBLERemoteCharacteristic* pChar, uint8_t* pData, size_t length, bool isNotify) {
-                this->notifyCallback(pChar, pData, length, isNotify);
-            });
-            _transparent = true;
-        }
-    }
 }
