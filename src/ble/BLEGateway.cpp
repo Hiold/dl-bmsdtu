@@ -59,7 +59,7 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
         }
 
         pGateway->_targetFound = true;
-        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress(), pDevice->getAddressType());
+        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress().toString(), pDevice->getAddressType());
         pGateway->_targetAddrType = pDevice->getAddressType();
         Serial.println("[BLE] Target found!");
         Serial.print("[BLE] Address: ");
