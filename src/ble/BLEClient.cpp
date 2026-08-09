@@ -3,7 +3,7 @@
 
 BLEClient::BLEClient()
     : _connected(false), _transparent(false), _notifyCallback(nullptr),
-      _pDevice(nullptr), _pClient(nullptr),
+      _scanCallbacks(), _pDevice(nullptr), _pClient(nullptr),
       _pWriteChar(nullptr), _pNotifyChar(nullptr) {}
 
 bool BLEClient::init() {
@@ -13,25 +13,25 @@ bool BLEClient::init() {
 
 bool BLEClient::connectToDevice() {
     BLEScan* pScan = BLEDevice::getScan();
-    pScan->setAdvertisedDeviceCallbacks(new class : public BLEAdvertisedDeviceCallbacks {
-        void onResult(BLEAdvertisedDevice* pDevice) override {
-            if (pDevice->getAddress().toString() == TARGET_MAC) {
-                BLEDevice::getScan()->stop();
-                BLEDevice::getScan()->clearAdvertisedDeviceCallbacks();
-                
-                BLEClient* pClient = BLEDevice::createClient();
-                pClient->setClientCallbacks(BLEDevice::getBLEClient());
-                
-                BLEAddress addr(pDevice->getAddress());
-                if (pClient->connect(addr)) {
-                    BLEDevice::setConnectedClient(pClient);
-                    pClient->discoverServices();
-                }
-            }
-        }
-    });
+    pScan->setAdvertisedDeviceCallbacks(&_scanCallbacks);
     pScan->start(5, false);
     return true;
+}
+
+void BLEClient::ScanCallbacks::onResult(BLEAdvertisedDevice* pDevice) {
+    if (pDevice->getAddress().toString() == TARGET_MAC) {
+        BLEDevice::getScan()->stop();
+        BLEDevice::getScan()->clearAdvertisedDeviceCallbacks();
+
+        BLEClient* pClient = BLEDevice::createClient();
+        pClient->setClientCallbacks(BLEClient::getInstance());
+
+        BLEAddress addr(pDevice->getAddress());
+        if (pClient->connect(addr)) {
+            BLEDevice::setConnectedClient(pClient);
+            pClient->discoverServices();
+        }
+    }
 }
 
 void BLEClient::onConnect(BLEClient* pClient) {
@@ -41,6 +41,10 @@ void BLEClient::onConnect(BLEClient* pClient) {
 
 void BLEClient::onDisconnect(BLEClient* pClient) {
     disconnect();
+}
+
+void BLEClient::onServiceDiscoverComplete(BLERemoteService* pRemoteService) {
+    handleServiceDiscover(pRemoteService);
 }
 
 void BLEClient::notifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {

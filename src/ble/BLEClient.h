@@ -26,15 +26,21 @@ public:
 
     void onConnect(BLEClient* pClient) override;
     void onDisconnect(BLEClient* pClient) override;
+    void onServiceDiscoverComplete(BLERemoteService* pRemoteService) override;
     void notifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify);
     void handleServiceDiscover(BLERemoteService* pRemoteService);
 
     static BLEClient* getInstance();
 
 private:
+    struct ScanCallbacks : public BLEAdvertisedDeviceCallbacks {
+        void onResult(BLEAdvertisedDevice* pDevice) override;
+    };
+
     bool _connected = false;
     bool _transparent = false;
     onNotifyCallback _notifyCallback;
+    ScanCallbacks _scanCallbacks;
 
     BLEAdvertisedDevice* _pDevice = nullptr;
     BLEClient* _pClient = nullptr;
