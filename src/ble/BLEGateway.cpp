@@ -62,7 +62,7 @@ void BLEGateway::attemptConnection() {
     pClient->setConnectionParams(6, 6, 0, 200);
     pClient->setConnectTimeout(10);
 
-    if (pClient->connect(_targetAddress, false)) {
+    if (pClient->connect(_targetAddress, true)) {
         Serial.println("[BLE] Connected!");
         _pClient = pClient;
         _connected = true;
@@ -108,7 +108,7 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
         Serial.print("[BLE] Address: ");
         Serial.println(pGateway->_targetAddress.toString().c_str());
 
-        delay(200);
+        delay(500);
         pGateway->attemptConnection();
     }
 }

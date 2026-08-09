@@ -13,7 +13,7 @@ void setup() {
     delay(100);
     Serial.println("\n[BOOT] BLE Gateway starting...");
     Serial.print("[BOOT] Target: ");
-    Serial.println(TARGET_MAC);
+    Serial.println(TARGET_NAME);
 
     uart.begin(UART_BAUD);
     bleGateway.init();
