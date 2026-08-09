@@ -14,6 +14,8 @@ class BLEGateway : public NimBLEClientCallbacks {
 public:
     BLEGateway();
 
+    static BLEGateway* getInstance();
+
     bool init();
     bool connectToDevice();
     void disconnect();
@@ -31,8 +33,7 @@ private:
         void onResult(NimBLEAdvertisedDevice* pDevice) override;
     };
 
-    void setupServiceAndCharacteristics(NimBLERemoteService* pService);
-    void getCharacteristics(NimBLERemoteCharacteristic* pChar);
+    void setupCharacteristics(NimBLERemoteService* pService);
 
     bool _connected = false;
     bool _transparent = false;
