@@ -2,7 +2,7 @@
 #define CONFIG_H
 
 // BLE 目标设备 MAC 地址（格式：xx:xx:xx:xx:xx:xx）
-#define TARGET_MAC "AA:BB:CC:DD:EE:FF"
+#define TARGET_MAC "7B:5E:8F:EF:38:7E"
 
 // BLE 服务和特征 UUID
 #define SERVICE_UUID "FFE0"
