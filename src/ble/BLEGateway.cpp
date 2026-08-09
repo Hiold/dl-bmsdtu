@@ -48,8 +48,11 @@ void BLEGateway::stopScan() {
 
 void BLEGateway::ScanCallbacks::onResult(const NimBLEAdvertisedDevice* pDevice) {
     String name = pDevice->getName().c_str();
-    Serial.print("[BLE] Found: ");
-    Serial.println(name.length() > 0 ? name.c_str() : pDevice->getAddress().toString().c_str());
+    Serial.print("[BLE] Found: addr=");
+    Serial.print(pDevice->getAddress().toString().c_str());
+    Serial.print(" name='");
+    Serial.print(name.length() > 0 ? name.c_str() : "(none)");
+    Serial.println("'");
 
     if (name == TARGET_NAME) {
         BLEGateway* pGateway = BLEGateway::getInstance();
