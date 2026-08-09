@@ -67,7 +67,6 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
         Serial.print("[BLE] Address type: ");
         Serial.println(pGateway->_targetAddrType);
 
-        delay(200);
         pGateway->attemptConnection();
     }
 }
@@ -102,9 +101,16 @@ void BLEGateway::attemptConnection() {
     pClient->setClientCallbacks(this);
     pClient->setConnectTimeout(10);
 
-    if (!pClient->connect(connectAddr)) {
+    pClient->connect(connectAddr);
+
+    uint32_t start = millis();
+    while (!pClient->isConnected() && millis() - start < 5000) {
+        delay(10);
+    }
+
+    if (!pClient->isConnected()) {
         int rc = pClient->getLastError();
-        Serial.print("[BLE] Connect failed, rc=");
+        Serial.print("[BLE] Connection timeout, rc=");
         Serial.println(rc);
         pClient->disconnect();
         delay(2000);
