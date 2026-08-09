@@ -3,13 +3,11 @@
 
 BLEClient::BLEClient()
     : _connected(false), _transparent(false), _notifyCallback(nullptr),
+      _pDevice(nullptr), _pClient(nullptr),
       _pWriteChar(nullptr), _pNotifyChar(nullptr) {}
 
 bool BLEClient::init() {
     BLEDevice::init("");
-    BLEDevice::setCustomGapEventHandler([](const BLEGapEvent& event) {
-        // Handle gap events if needed
-    });
     return true;
 }
 
@@ -19,17 +17,45 @@ bool BLEClient::connectToDevice() {
         void onResult(BLEAdvertisedDevice* pDevice) override {
             if (pDevice->getAddress().toString() == TARGET_MAC) {
                 BLEDevice::getScan()->stop();
-                // Store device and trigger connection
+                BLEDevice::getScan()->clearAdvertisedDeviceCallbacks();
+                
+                BLEClient* pClient = BLEDevice::createClient();
+                pClient->setClientCallbacks(BLEDevice::getBLEClient());
+                
+                BLEAddress addr(pDevice->getAddress());
+                if (pClient->connect(addr)) {
+                    BLEDevice::setConnectedClient(pClient);
+                    pClient->discoverServices();
+                }
             }
         }
     });
-    pScan->start(5);
+    pScan->start(5, false);
     return true;
+}
+
+void BLEClient::onConnect(BLEClient* pClient) {
+    _connected = true;
+    _pClient = pClient;
+}
+
+void BLEClient::onDisconnect(BLEClient* pClient) {
+    disconnect();
+}
+
+void BLEClient::notifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+    if (_notifyCallback) {
+        _notifyCallback(pData, length);
+    }
 }
 
 void BLEClient::disconnect() {
     _connected = false;
     _transparent = false;
+    if (_pClient) {
+        _pClient->disconnect();
+    }
+    _pClient = nullptr;
     _pWriteChar = nullptr;
     _pNotifyChar = nullptr;
 }
@@ -44,16 +70,27 @@ void BLEClient::registerNotifyCallback(onNotifyCallback callback) {
     _notifyCallback = callback;
 }
 
-void BLEClient::onConnect(BLEClient* pClient) {
-    _connected = true;
+void BLEClient::setTransparent(bool transparent) {
+    _transparent = transparent;
 }
 
-void BLEClient::onDisconnect(BLEClient* pClient) {
-    disconnect();
+BLEClient* BLEClient::getInstance() {
+    static BLEClient instance;
+    return &instance;
 }
 
-void BLEClient::notifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-    if (_notifyCallback) {
-        _notifyCallback(pData, length);
+void BLEClient::handleServiceDiscover(BLERemoteService* pRemoteService) {
+    if (pRemoteService && pRemoteService->getUUID().toString() == SERVICE_UUID) {
+        BLERemoteCharacteristic* pWriteChar = pRemoteService->getCharacteristic(CHAR_WRITE_UUID);
+        BLERemoteCharacteristic* pNotifyChar = pRemoteService->getCharacteristic(CHAR_NOTIFY_UUID);
+        
+        if (pWriteChar && pNotifyChar) {
+            _pWriteChar = pWriteChar;
+            _pNotifyChar = pNotifyChar;
+            _pNotifyChar->registerForNotify([this](BLERemoteCharacteristic* pChar, uint8_t* pData, size_t length, bool isNotify) {
+                this->notifyCallback(pChar, pData, length, isNotify);
+            });
+            _transparent = true;
+        }
     }
 }

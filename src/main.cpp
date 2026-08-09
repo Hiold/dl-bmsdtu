@@ -13,6 +13,11 @@ void setup() {
     delay(100);
 
     bleClient.init();
+
+    bleClient.registerNotifyCallback([](const uint8_t* data, size_t len) {
+        uart.write(data, len);
+    });
+
     stateMachine.setState(State::SCANNING);
     bleClient.connectToDevice();
 }
@@ -22,11 +27,18 @@ void loop() {
     State state = stateMachine.getState();
 
     switch (state) {
+    case State::SCANNING:
+    case State::CONNECTING:
+    case State::CONNECTED:
+        if (bleClient.isTransparent()) {
+            stateMachine.setState(State::TRANSPARENT);
+        }
+        break;
+
     case State::TRANSPARENT:
         {
             uint8_t buf[256];
-            size_t len = uart.available();
-            if (len > 0) {
+            if (uart.available() > 0) {
                 size_t readLen = uart.read(buf, sizeof(buf));
                 bleClient.write(buf, readLen);
             }

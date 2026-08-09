@@ -22,22 +22,24 @@ public:
 
     bool isConnected() const { return _connected; }
     bool isTransparent() const { return _transparent; }
+    void setTransparent(bool transparent);
 
     void onConnect(BLEClient* pClient) override;
     void onDisconnect(BLEClient* pClient) override;
     void notifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify);
+    void handleServiceDiscover(BLERemoteService* pRemoteService);
+
+    static BLEClient* getInstance();
 
 private:
     bool _connected = false;
     bool _transparent = false;
     onNotifyCallback _notifyCallback;
 
+    BLEAdvertisedDevice* _pDevice = nullptr;
+    BLEClient* _pClient = nullptr;
     BLERemoteCharacteristic* _pWriteChar = nullptr;
     BLERemoteCharacteristic* _pNotifyChar = nullptr;
-
-    static void scanResult(BLEAdvertisedDevice* pDevice);
-    static void serviceDiscoverComplete(BLERemoteService* pRemoteService);
-    static void characteristicDiscoverComplete(BLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify);
 };
 
 #endif
