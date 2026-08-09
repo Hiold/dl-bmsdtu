@@ -59,7 +59,7 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
         }
 
         pGateway->_targetFound = true;
-        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress());
+        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress(), pDevice->getAddressType());
         pGateway->_targetAddrType = pDevice->getAddressType();
         Serial.println("[BLE] Target found!");
         Serial.print("[BLE] Address: ");
@@ -99,6 +99,10 @@ void BLEGateway::attemptConnection() {
 
     Serial.print("[BLE] Connecting to: ");
     Serial.println(_targetAddress.toString().c_str());
+    Serial.print("[BLE] Using address type: ");
+    Serial.println(_targetAddrType);
+    Serial.print("[BLE] Heap: ");
+    Serial.println(ESP.getFreeHeap());
 
     pClient->setClientCallbacks(this);
     pClient->setConnectTimeout(10);
@@ -169,7 +173,7 @@ void BLEGateway::attemptConnection() {
 }
 
 void BLEGateway::onConnect(NimBLEClient* pClient) {
-    Serial.println("[BLE] onConnect callback!");
+    Serial.println("[BLE] *** onConnect callback! ***");
     Serial.print("[BLE] Peer: ");
     Serial.println(pClient->getPeerAddress().toString().c_str());
     _connected = true;
