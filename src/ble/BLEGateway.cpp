@@ -53,14 +53,15 @@ void BLEGateway::attemptConnection() {
     }
 
     stopScan();
+    delay(500);
     Serial.print("[BLE] Connecting to: ");
     Serial.println(_targetAddress.toString().c_str());
 
     NimBLEClient* pClient = NimBLEDevice::createClient();
     pClient->setClientCallbacks(this);
 
-    pClient->setConnectionParams(6, 6, 0, 200);
-    pClient->setConnectTimeout(10);
+    pClient->setConnectionParams(12, 12, 0, 100);
+    pClient->setConnectTimeout(15);
 
     if (pClient->connect(_targetAddress, true)) {
         Serial.println("[BLE] Connected!");
@@ -82,10 +83,36 @@ void BLEGateway::attemptConnection() {
             }
         }
     } else {
-        Serial.println("[BLE] Connection failed!");
+        Serial.println("[BLE] Connection failed, retrying in 3s...");
         pClient->disconnect();
-        delay(1000);
-        startScan();
+        delay(3000);
+        
+        Serial.println("[BLE] Retry connection...");
+        NimBLEClient* pRetryClient = NimBLEDevice::createClient();
+        pRetryClient->setClientCallbacks(this);
+        pRetryClient->setConnectionParams(12, 12, 0, 100);
+        pRetryClient->setConnectTimeout(15);
+        
+        if (pRetryClient->connect(_targetAddress, true)) {
+            Serial.println("[BLE] Connected on retry!");
+            _pClient = pRetryClient;
+            _connected = true;
+            
+            std::vector<NimBLERemoteService*>* pServices = pRetryClient->getServices();
+            if (pServices) {
+                for (NimBLERemoteService* pService : *pServices) {
+                    if (pService->getUUID().toString() == SERVICE_UUID) {
+                        setupCharacteristics(pService);
+                        break;
+                    }
+                }
+            }
+        } else {
+            Serial.println("[BLE] Retry failed, restarting scan...");
+            pRetryClient->disconnect();
+            delay(2000);
+            startScan();
+        }
     }
 }
 
@@ -108,7 +135,7 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
         Serial.print("[BLE] Address: ");
         Serial.println(pGateway->_targetAddress.toString().c_str());
 
-        delay(500);
+        delay(1000);
         pGateway->attemptConnection();
     }
 }
