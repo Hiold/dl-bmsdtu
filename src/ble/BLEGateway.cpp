@@ -20,9 +20,13 @@ bool BLEGateway::init() {
 }
 
 void BLEGateway::startScan() {
-    if (_scanning) return;
+    if (_scanning) {
+        NimBLEDevice::getScan()->stop();
+    }
 
     NimBLEScan* pScan = NimBLEDevice::getScan();
+    pScan->setAdvertisedDeviceCallbacks(nullptr);
+    pScan->clearDuplicateCache();
     pScan->setAdvertisedDeviceCallbacks(&_scanCallbacks);
     pScan->setActiveScan(true);
     pScan->setInterval(100);
@@ -31,7 +35,7 @@ void BLEGateway::startScan() {
 
     _scanning = true;
     _scanStartTime = millis();
-    Serial.println("[BLE] Scan started (30s)");
+    Serial.println("[BLE] Scan restarted");
     Serial.print("[BLE] Looking for: ");
     Serial.println(TARGET_MAC);
 }
