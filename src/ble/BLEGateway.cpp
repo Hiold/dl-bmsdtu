@@ -29,8 +29,8 @@ void BLEGateway::startScan() {
     NimBLEScan* pScan = NimBLEDevice::getScan();
     pScan->setScanCallbacks(&_scanCallbacks);
     pScan->setActiveScan(true);
-    pScan->setInterval(100);
-    pScan->setWindow(50);
+    pScan->setInterval(80);
+    pScan->setWindow(40);
     pScan->setDuplicateFilter(0);
     pScan->start(30, false);
 
@@ -63,13 +63,13 @@ void BLEGateway::ScanCallbacks::onResult(const NimBLEAdvertisedDevice* pDevice) 
         }
 
         pGateway->_targetFound = true;
-        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress().toString(), 0);
-        pGateway->_targetAddrType = 0;
+        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress().toString(), pDevice->getAddressType());
+        pGateway->_targetAddrType = pDevice->getAddressType();
         Serial.println("[BLE] Target found!");
         Serial.print("[BLE] Address: ");
         Serial.println(pGateway->_targetAddress.toString().c_str());
         Serial.print("[BLE] Address type: ");
-        Serial.println(pGateway->_targetAddrType);
+        Serial.println(pDevice->getAddressType());
 
         pGateway->attemptConnection();
     }
@@ -91,11 +91,13 @@ void BLEGateway::ScanCallbacks::onDiscovered(const NimBLEAdvertisedDevice* pDevi
         }
 
         pGateway->_targetFound = true;
-        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress().toString(), 0);
-        pGateway->_targetAddrType = 0;
+        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress().toString(), pDevice->getAddressType());
+        pGateway->_targetAddrType = pDevice->getAddressType();
         Serial.println("[BLE] Target found (onDiscovered)!");
         Serial.print("[BLE] Address: ");
         Serial.println(pGateway->_targetAddress.toString().c_str());
+        Serial.print("[BLE] Address type: ");
+        Serial.println(pDevice->getAddressType());
 
         pGateway->attemptConnection();
     }
@@ -139,7 +141,8 @@ void BLEGateway::attemptConnection() {
     Serial.println(ESP.getFreeHeap());
 
     pClient->setClientCallbacks(this);
-    pClient->setConnectTimeout(10000);
+    pClient->setConnectTimeout(15000);
+    pClient->setConnectionParams(24, 40, 0, 2000, 16, 16);
 
     if (!pClient->connect(_targetAddress, true, false)) {
         int rc = pClient->getLastError();
