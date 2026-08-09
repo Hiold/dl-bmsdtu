@@ -37,14 +37,17 @@ private:
     };
 
     void setupCharacteristics(NimBLERemoteService* pService);
+    void attemptConnection();
 
     bool _connected = false;
     bool _transparent = false;
     bool _scanning = false;
+    bool _targetFound = false;
     uint32_t _scanStartTime = 0;
     onNotifyCallback _notifyCallback;
     ScanCallbacks _scanCallbacks;
 
+    NimBLEAddress _targetAddress;
     NimBLEClient* _pClient = nullptr;
     NimBLERemoteCharacteristic* _pWriteChar = nullptr;
     NimBLERemoteCharacteristic* _pNotifyChar = nullptr;
