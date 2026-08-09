@@ -59,8 +59,8 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
         }
 
         pGateway->_targetFound = true;
-        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress().toString(), pDevice->getAddressType());
-        pGateway->_targetAddrType = pDevice->getAddressType();
+        pGateway->_targetAddress = NimBLEAddress(pDevice->getAddress().toString(), 0);
+        pGateway->_targetAddrType = 0;
         Serial.println("[BLE] Target found!");
         Serial.print("[BLE] Address: ");
         Serial.println(pGateway->_targetAddress.toString().c_str());
@@ -79,11 +79,6 @@ void BLEGateway::attemptConnection() {
 
     stopScan();
     NimBLEDevice::getScan()->clearResults();
-
-    if (NimBLEDevice::isBonded(_targetAddress)) {
-        Serial.println("[BLE] Deleting existing bond...");
-        NimBLEDevice::deleteBond(_targetAddress);
-    }
 
     NimBLEClient* pClient = NimBLEDevice::getDisconnectedClient();
     if (!pClient) {
