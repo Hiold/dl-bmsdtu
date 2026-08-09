@@ -123,7 +123,7 @@ void BLEGateway::ScanCallbacks::onResult(NimBLEAdvertisedDevice* pDevice) {
             }
         } else {
             Serial.println("[BLE] Connection failed!");
-            delete pClient;
+            pClient->disconnect();
             delay(1000);
             pGateway->startScan();
         }
