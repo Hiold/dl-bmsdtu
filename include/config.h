@@ -2,7 +2,7 @@
 #define CONFIG_H
 
 
-#define TARGET_NAME "Neo10Pro"
+#define TARGET_NAME "xiaomi.switch.w1"
 
 // BLE 服务和特征 UUID
 #define SERVICE_UUID "FFE0"

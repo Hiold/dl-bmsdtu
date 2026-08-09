@@ -142,9 +142,8 @@ void BLEGateway::attemptConnection() {
 
     pClient->setClientCallbacks(this);
     pClient->setConnectTimeout(15000);
-    pClient->setConnectionParams(24, 40, 0, 2000, 16, 16);
 
-    if (!pClient->connect(_targetAddress, true, false)) {
+    if (!pClient->connect(_targetAddress, false, false)) {
         int rc = pClient->getLastError();
         Serial.print("[BLE] Connect failed, rc=");
         Serial.println(rc);
@@ -209,6 +208,18 @@ void BLEGateway::attemptConnection() {
 void BLEGateway::onConnect(NimBLEClient* pClient) {
     Serial.println("[BLE] *** onConnect callback! ***");
     _connected = true;
+}
+
+bool BLEGateway::onConnParamsUpdateRequest(NimBLEClient* pClient, const ble_gap_upd_params* params) {
+    Serial.print("[BLE] Conn params update: interval=");
+    Serial.print(params->itvl_min);
+    Serial.print("-");
+    Serial.print(params->itvl_max);
+    Serial.print(" latency=");
+    Serial.print(params->latency);
+    Serial.print(" timeout=");
+    Serial.println(params->supervision_timeout);
+    return true;
 }
 
 void BLEGateway::onConnectFail(NimBLEClient* pClient, int reason) {
