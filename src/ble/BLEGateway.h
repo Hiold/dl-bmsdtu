@@ -28,11 +28,13 @@ public:
     bool isTransparent() const { return _transparent; }
 
     void onConnect(NimBLEClient* pClient) override;
-    void onDisconnect(NimBLEClient* pClient) override;
+    void onConnectFail(NimBLEClient* pClient, int reason) override;
+    void onDisconnect(NimBLEClient* pClient, int reason) override;
 
 private:
-    struct ScanCallbacks : public NimBLEAdvertisedDeviceCallbacks {
+    struct ScanCallbacks : public NimBLEScanCallbacks {
         void onResult(NimBLEAdvertisedDevice* pDevice) override;
+        void onScanEnd(const NimBLEScanResults& scanResults, int reason) override {}
     };
 
     void attemptConnection();
@@ -41,12 +43,12 @@ private:
     bool _transparent = false;
     bool _scanning = false;
     bool _targetFound = false;
+    uint8_t _targetAddrType = 0;
     uint32_t _scanStartTime = 0;
     onNotifyCallback _notifyCallback;
     ScanCallbacks _scanCallbacks;
 
     NimBLEAddress _targetAddress;
-    uint8_t _targetAddrType = 0;
     NimBLEClient* _pClient = nullptr;
     NimBLERemoteCharacteristic* _pWriteChar = nullptr;
     NimBLERemoteCharacteristic* _pNotifyChar = nullptr;
