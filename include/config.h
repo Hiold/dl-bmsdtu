@@ -2,12 +2,13 @@
 #define CONFIG_H
 
 
-#define TARGET_NAME "Neo10Pro"
+#define TARGET_MAC "48:dc:50:f4:45:93"
+#define LED_PIN 0
 
 // BLE 服务和特征 UUID
 #define SERVICE_UUID "FFE0"
 #define CHAR_WRITE_UUID "FFE1"
-#define CHAR_NOTIFY_UUID "FFE2"
+#define CHAR_NOTIFY_UUID "FFE1"
 
 // 连接参数
 #define CONNECT_TIMEOUT_MS 10000

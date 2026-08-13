@@ -1,6 +1,7 @@
 #include "UARTHandler.h"
 
 bool UARTHandler::begin(unsigned long baud) {
+
     _baud = baud;
     Serial1.begin(baud, SERIAL_8N1, 20, 21);
     delay(100);

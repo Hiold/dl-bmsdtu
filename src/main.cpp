@@ -12,39 +12,45 @@
 #include <config.h>
 #include "uart/UARTHandler.h"
 
-static const NimBLEAdvertisedDevice *advDevice;
-static bool doConnect = false;
+static bool isConnect = false;
 UARTHandler uart;
 static uint32_t scanTimeMs = 5000; /** scan time in milliseconds, 0 = scan forever */
 static NimBLERemoteCharacteristic *pChr = nullptr;
+static NimBLERemoteCharacteristic *pChr2 = nullptr;
 
-size_t hexStrToBytes(const char* hexStr, uint8_t* bytes, size_t maxLen) {
-    size_t len = strlen(hexStr);
-    if (len % 2 != 0 || len / 2 > maxLen) return 0;
+// const char *TARGET_MAC = "6c:09:3b:8a:b6:5c";
 
-    for (size_t i = 0; i < len / 2; i++) {
-        char high = hexStr[i * 2];
-        char low = hexStr[i * 2 + 1];
-        if (!isxdigit(high) || !isxdigit(low)) return 0;
+size_t hexStrToBytes(const char *hexStr, uint8_t *bytes, size_t maxLen)
+{
+  size_t len = strlen(hexStr);
+  if (len % 2 != 0 || len / 2 > maxLen)
+    return 0;
 
-        uint8_t h = isdigit(high) ? high - '0' : toupper(high) - 'A' + 10;
-        uint8_t l = isdigit(low) ? low - '0' : toupper(low) - 'A' + 10;
-        bytes[i] = (h << 4) | l;
-    }
-    return len / 2;
+  for (size_t i = 0; i < len / 2; i++)
+  {
+    char high = hexStr[i * 2];
+    char low = hexStr[i * 2 + 1];
+    if (!isxdigit(high) || !isxdigit(low))
+      return 0;
+
+    uint8_t h = isdigit(high) ? high - '0' : toupper(high) - 'A' + 10;
+    uint8_t l = isdigit(low) ? low - '0' : toupper(low) - 'A' + 10;
+    bytes[i] = (h << 4) | l;
+  }
+  return len / 2;
 }
 
-void bytesToHexStr(const uint8_t* bytes, size_t len, char* hexStr) {
-    static const char hexChars[] = "0123456789ABCDEF";
-    for (size_t i = 0; i < len; i++) {
-        hexStr[i * 2] = hexChars[bytes[i] >> 4];
-        hexStr[i * 2 + 1] = hexChars[bytes[i] & 0x0F];
-    }
-    hexStr[len * 2] = '\0';
+void bytesToHexStr(const uint8_t *bytes, size_t len, char *hexStr)
+{
+  static const char hexChars[] = "0123456789ABCDEF";
+  for (size_t i = 0; i < len; i++)
+  {
+    hexStr[i * 2] = hexChars[bytes[i] >> 4];
+    hexStr[i * 2 + 1] = hexChars[bytes[i] & 0x0F];
+  }
+  hexStr[len * 2] = '\0';
 }
 
-/**  None of these are required as they will be handled by the library with defaults. **
- **                       Remove as you see fit for your needs                        */
 class ClientCallbacks : public NimBLEClientCallbacks
 {
   void onConnect(NimBLEClient *pClient) override { Serial.printf("Connected\n"); }
@@ -52,69 +58,10 @@ class ClientCallbacks : public NimBLEClientCallbacks
   void onDisconnect(NimBLEClient *pClient, int reason) override
   {
     Serial.printf("%s Disconnected, reason = %d - Starting scan\n", pClient->getPeerAddress().toString().c_str(), reason);
-    doConnect = false;
+    isConnect = false;
     NimBLEDevice::getScan()->start(scanTimeMs, false, true);
   }
-
-  /********************* Security handled here *********************/
-  void onPassKeyEntry(NimBLEConnInfo &connInfo) override
-  {
-    Serial.printf("Server Passkey Entry\n");
-    /**
-     * This should prompt the user to enter the passkey displayed
-     * on the peer device.
-     */
-    NimBLEDevice::injectPassKey(connInfo, 123456);
-  }
-
-  void onConfirmPasskey(NimBLEConnInfo &connInfo, uint32_t pass_key) override
-  {
-    Serial.printf("The passkey YES/NO number: %" PRIu32 "\n", pass_key);
-    /** Inject false if passkeys don't match. */
-    NimBLEDevice::injectConfirmPasskey(connInfo, true);
-  }
-
-  /** Pairing process complete, we can check the results in connInfo */
-  void onAuthenticationComplete(NimBLEConnInfo &connInfo) override
-  {
-    if (!connInfo.isEncrypted())
-    {
-      Serial.printf("Encrypt connection failed - disconnecting\n");
-      /** Find the client with the connection handle provided in connInfo */
-      NimBLEDevice::getClientByHandle(connInfo.getConnHandle())->disconnect();
-      return;
-    }
-  }
 } clientCallbacks;
-
-/** Define a class to handle the callbacks when scan events are received */
-class ScanCallbacks : public NimBLEScanCallbacks
-{
-  void onResult(const NimBLEAdvertisedDevice *advertisedDevice) override
-  {
-    if (advertisedDevice->isAdvertisingService(NimBLEUUID("FFE0")) || advertisedDevice->getName() == TARGET_NAME){
-      Serial.printf("Advertised Device found: %s\n", advertisedDevice->toString().c_str());
-      Serial.printf("Found Our Service\n");
-      /** stop scan before connecting */
-      NimBLEDevice::getScan()->stop();
-      /** Save the device reference in a global for the client to use*/
-      advDevice = advertisedDevice;
-      /** Ready to connect now */
-      doConnect = true;
-    }
-  }
-
-  /** Callback to process the results of the completed scan or restart it */
-  void onScanEnd(const NimBLEScanResults &results, int reason) override
-  {
-    Serial.printf("Scan Ended, reason: %d, device count: %d\n", reason, results.getCount());
-    if (!doConnect)
-    {
-      Serial.printf("Restarting scan\n");
-      NimBLEDevice::getScan()->start(scanTimeMs, false, true);
-    }
-  }
-} scanCallbacks;
 
 /** Notification / Indication receiving handler callback */
 void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
@@ -127,30 +74,36 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
   str += ", Value = " + std::string((char *)pData, length);
   Serial.printf("%s\n", str.c_str());
 
-  if (length > 0) {
+  Serial.printf("BLE recv hex: ");
+  for (size_t i = 0; i < length; i++)
+  {
+    Serial.printf("%02X", pData[i]);
+  }
+  Serial.printf("\n");
+
+  if (length > 0)
+  {
     char hexStr[length * 2 + 1];
     bytesToHexStr(pData, length, hexStr);
-    uart.write((uint8_t*)hexStr, strlen(hexStr));
+    Serial.printf("Converted hexStr: %s\n", hexStr);
+    uart.write((uint8_t *)hexStr, strlen(hexStr));
   }
 }
 
-/** Handles the provisioning of clients and connects / interfaces with the server */
 bool connectToServer()
 {
+  if (isConnect)
+  {
+    Serial.printf("Already Connected, Do Nothing");
+    return true;
+  }
   NimBLEClient *pClient = nullptr;
-
-  /** Check if we have a client we should reuse first **/
   if (NimBLEDevice::getCreatedClientCount())
   {
-    /**
-     *  Special case when we already know this device, we send false as the
-     *  second argument in connect() to prevent refreshing the service database.
-     *  This saves considerable time and power.
-     */
-    pClient = NimBLEDevice::getClientByPeerAddress(advDevice->getAddress());
+    pClient = NimBLEDevice::createClient();
     if (pClient)
     {
-      if (!pClient->connect(advDevice, false))
+      if (!pClient->connect(NimBLEAddress(TARGET_MAC, BLE_ADDR_RANDOM), false))
       {
         Serial.printf("Reconnect failed\n");
         return false;
@@ -187,12 +140,12 @@ bool connectToServer()
      *  connections. Timeout should be a multiple of the interval, minimum is 100ms.
      *  Min interval: 12 * 1.25ms = 15, Max interval: 12 * 1.25ms = 15, 0 latency, 150 * 10ms = 1500ms timeout
      */
-    pClient->setConnectionParams(12, 12, 0, 150);
+    pClient->setConnectionParams(200, 500, 0, 150);
 
     /** Set how long we are willing to wait for the connection to complete (milliseconds), default is 30000. */
     pClient->setConnectTimeout(5 * 1000);
 
-    if (!pClient->connect(advDevice))
+    if (!pClient->connect(NimBLEAddress(TARGET_MAC, BLE_ADDR_RANDOM)))
     {
       /** Created a client but failed to connect, don't need to keep it as it has no data */
       NimBLEDevice::deleteClient(pClient);
@@ -203,219 +156,172 @@ bool connectToServer()
 
   if (!pClient->isConnected())
   {
-    if (!pClient->connect(advDevice))
+    if (!pClient->connect(NimBLEAddress(TARGET_MAC, BLE_ADDR_RANDOM)))
     {
       Serial.printf("Failed to connect\n");
       return false;
     }
   }
 
+  pClient->setConnectionParams(12, 12, 0, 150);
+
   Serial.printf("Connected to: %s RSSI: %d\n", pClient->getPeerAddress().toString().c_str(), pClient->getRssi());
 
-  /** Now we can read/write/subscribe the characteristics of the services we are interested in */
+  // 服务指针
   NimBLERemoteService *pSvc = nullptr;
+  // 特性指针
   NimBLERemoteDescriptor *pDsc = nullptr;
-
-  pSvc = pClient->getService("FFE0");
+  //
+  pSvc = pClient->getService(SERVICE_UUID);
   if (pSvc)
   {
-    pChr = pSvc->getCharacteristic("FFE1");
+    pChr = pSvc->getCharacteristic(CHAR_WRITE_UUID);
+    pChr2 = pSvc->getCharacteristic(CHAR_NOTIFY_UUID);
   }
-
+  else
+  {
+    Serial.printf("Service FFE0 Not Found\n");
+    return false;
+  }
+  // 核对写入目标特征
   if (pChr)
   {
-    if (pChr->canRead())
-    {
-      Serial.printf("%s Value: %s\n", pChr->getUUID().toString().c_str(), pChr->readValue().c_str());
-    }
-
     if (pChr->canWrite())
     {
-      if (pChr->writeValue("Tasty"))
-      {
-        Serial.printf("Wrote new value to: %s\n", pChr->getUUID().toString().c_str());
-      }
-      else
-      {
-        pClient->disconnect();
-        return false;
-      }
-
-      if (pChr->canRead())
-      {
-        Serial.printf("The value of: %s is now: %s\n", pChr->getUUID().toString().c_str(), pChr->readValue().c_str());
-      }
+      Serial.printf("Found Writeble Descriptor FFE1\n");
     }
-
-    if (pChr->canNotify())
+    else
     {
-      if (!pChr->subscribe(true, notifyCB))
-      {
-        pClient->disconnect();
-        return false;
-      }
-    }
-    else if (pChr->canIndicate())
-    {
-      /** Send false as first argument to subscribe to indications instead of notifications */
-      if (!pChr->subscribe(false, notifyCB))
-      {
-        pClient->disconnect();
-        return false;
-      }
+      Serial.printf("Descriptor FFE1 Not Writeble\n");
+      return false;
     }
   }
   else
   {
-    Serial.printf("DEAD service not found.\n");
+    Serial.printf("Found Writeble Descriptor FFE1\n");
+    return false;
   }
-
-  // pSvc = pClient->getService("BAAD");
-  // if (pSvc)
-  // {
-  //   pChr = pSvc->getCharacteristic("F00D");
-  //   if (pChr)
-  //   {
-  //     if (pChr->canRead())
-  //     {
-  //       Serial.printf("%s Value: %s\n", pChr->getUUID().toString().c_str(), pChr->readValue().c_str());
-  //     }
-
-  //     pDsc = pChr->getDescriptor(NimBLEUUID("C01D"));
-  //     if (pDsc)
-  //     {
-  //       Serial.printf("Descriptor: %s  Value: %s\n", pDsc->getUUID().toString().c_str(), pDsc->readValue().c_str());
-  //     }
-
-  //     if (pChr->canWrite())
-  //     {
-  //       if (pChr->writeValue("No tip!"))
-  //       {
-  //         Serial.printf("Wrote new value to: %s\n", pChr->getUUID().toString().c_str());
-  //       }
-  //       else
-  //       {
-  //         pClient->disconnect();
-  //         return false;
-  //       }
-
-  //       if (pChr->canRead())
-  //       {
-  //         Serial.printf("The value of: %s is now: %s\n",
-  //                       pChr->getUUID().toString().c_str(),
-  //                       pChr->readValue().c_str());
-  //       }
-  //     }
-
-  //     if (pChr->canNotify())
-  //     {
-  //       if (!pChr->subscribe(true, notifyCB))
-  //       {
-  //         pClient->disconnect();
-  //         return false;
-  //       }
-  //     }
-  //     else if (pChr->canIndicate())
-  //     {
-  //       /** Send false as first argument to subscribe to indications instead of notifications */
-  //       if (!pChr->subscribe(false, notifyCB))
-  //       {
-  //         pClient->disconnect();
-  //         return false;
-  //       }
-  //     }
-  //   }
-  // }
-  // else
-  // {
-  //   Serial.printf("BAAD service not found.\n");
-  // }
-
-  Serial.printf("Done with this device!\n");
+  // 核对通知目标特征
+  if (pChr2)
+  {
+    if (pChr2->canNotify() || pChr2->canIndicate())
+    {
+      if (!pChr2->subscribe(true, notifyCB))
+      {
+        pClient->disconnect();
+        return false;
+      }
+      else
+      {
+        Serial.printf("Found subscribe Descriptor FFE2\n");
+      }
+    }
+    else
+    {
+      Serial.printf("Descriptor FFE2 Not subscribeble\n");
+      return false;
+    }
+  }
+  else
+  {
+    Serial.printf("Can not Found subscribeble Descriptor FFE2\n");
+    return false;
+  }
+  Serial.printf("All Done with this device!\n");
   return true;
+}
+
+void connect(void *arg)
+{
+  while (1)
+  {
+    isConnect = connectToServer();
+    if (!isConnect)
+    {
+      Serial.printf("Can Not Find Target Device sleep 30s\n");
+      // esp_sleep_enable_timer_wakeup(30 * 1000000);
+      // esp_light_sleep_start();
+      // initSerial();
+      // Serial.println("Woke up by timer!");
+      vTaskDelay(pdMS_TO_TICKS(30 * 1000));
+    }
+    else
+    {
+      // 延迟30秒
+      vTaskDelay(pdMS_TO_TICKS(30 * 1000));
+    }
+  }
+}
+
+void scanSerialInput(void *arg)
+{
+  while (1)
+  {
+    const size_t BRIDGE_BUF_SIZE = 256;
+    static uint8_t bridgeBuf[BRIDGE_BUF_SIZE];
+    static char hexStrBuf[BRIDGE_BUF_SIZE * 2 + 1];
+    size_t uartAvail = uart.available();
+    if (uartAvail > 0)
+    {
+      size_t readLen = min(uartAvail, (size_t)(BRIDGE_BUF_SIZE * 2));
+      size_t actualLen = uart.read((uint8_t *)hexStrBuf, readLen);
+      hexStrBuf[actualLen] = '\0';
+      size_t byteLen = hexStrToBytes(hexStrBuf, bridgeBuf, BRIDGE_BUF_SIZE);
+      if (byteLen > 0 && pChr && pChr->canWrite())
+      {
+        pChr->writeValue((uint8_t *)bridgeBuf, byteLen);
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(3000));
+  }
+}
+
+void hearbeat(void *arg)
+{
+  while (1)
+  {
+    if (isConnect)
+    {
+      // 延迟30秒
+      if (pChr)
+      {
+        if (pChr->canWrite())
+        {
+          pChr->writeValue("Tasty");
+        }
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(10 * 1000));
+  }
 }
 
 void setup()
 {
   Serial.begin(115200);
   uart.begin(UART_BAUD);
+  delay(500);
+  Serial.println("Serial Initialzied");
   Serial.printf("Starting NimBLE Client\n");
-
   /** Initialize NimBLE and set the device name */
   NimBLEDevice::init("NimBLE-Client");
+  NimBLEDevice::setPower(0); /** 3dbm */
+  // 关闭电源指示灯
 
-  /**
-   * Set the IO capabilities of the device, each option will trigger a different pairing method.
-   *  BLE_HS_IO_KEYBOARD_ONLY   - Passkey pairing
-   *  BLE_HS_IO_DISPLAY_YESNO   - Numeric comparison pairing
-   *  BLE_HS_IO_NO_INPUT_OUTPUT - DEFAULT setting - just works pairing
-   */
-  // NimBLEDevice::setSecurityIOCap(BLE_HS_IO_KEYBOARD_ONLY); // use passkey
-  // NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_YESNO); //use numeric comparison
+  // // 4. 全局设置：允许 Modem Sleep（ESP32-C3 默认支持）
+  // esp_pm_config_esp32c3_t pm_config = {
+  //     .max_freq_mhz = 80,        // CPU 最大频率（降低到80MHz）
+  //     .min_freq_mhz = 40,        // CPU 最小频率
+  //     .light_sleep_enable = true // 允许浅睡眠（Modem Sleep）
+  // };
+  // esp_pm_configure(&pm_config);
 
-  /**
-   * 2 different ways to set security - both calls achieve the same result.
-   *  no bonding, no man in the middle protection, BLE secure connections.
-   *  These are the default values, only shown here for demonstration.
-   */
-  // NimBLEDevice::setSecurityAuth(false, false, true);
-  // NimBLEDevice::setSecurityAuth(BLE_SM_PAIR_AUTHREQ_BOND | BLE_SM_PAIR_AUTHREQ_MITM | BLE_SM_PAIR_AUTHREQ_SC);
-
-  /** Optional: set the transmit power */
-  NimBLEDevice::setPower(3); /** 3dbm */
-  NimBLEScan *pScan = NimBLEDevice::getScan();
-
-  /** Set the callbacks to call when scan events occur, no duplicates */
-  pScan->setScanCallbacks(&scanCallbacks, false);
-
-  /** Set scan interval (how often) and window (how long) in milliseconds */
-  pScan->setInterval(100);
-  pScan->setWindow(100);
-
-  /**
-   * Active scan will gather scan response data from advertisers
-   *  but will use more energy from both devices
-   */
-  pScan->setActiveScan(true);
-
-  /** Start scanning for advertisers */
-  pScan->start(scanTimeMs);
-  Serial.printf("Scanning for peripherals\n");
+  // 创建链接蓝牙任务
+  xTaskCreate(connect, "connect", 2048, NULL, 1, NULL);
+  xTaskCreate(scanSerialInput, "light_flash", 2048, NULL, 1, NULL);
+  xTaskCreate(hearbeat, "hearbeat", 2048, NULL, 1, NULL);
 }
 
+// 不使用loop
 void loop()
 {
-  /** Loop here until we find a device we want to connect to */
-  delay(10);
-
-    const size_t BRIDGE_BUF_SIZE = 256;
-    static uint8_t bridgeBuf[BRIDGE_BUF_SIZE];
-    static char hexStrBuf[BRIDGE_BUF_SIZE * 2 + 1];
-    size_t uartAvail = uart.available();
-    if (uartAvail > 0) {
-        size_t readLen = min(uartAvail, (size_t)(BRIDGE_BUF_SIZE * 2));
-        size_t actualLen = uart.read((uint8_t*)hexStrBuf, readLen);
-        hexStrBuf[actualLen] = '\0';
-        size_t byteLen = hexStrToBytes(hexStrBuf, bridgeBuf, BRIDGE_BUF_SIZE);
-        if (byteLen > 0 && pChr && pChr->canWrite()) {
-            pChr->writeValue((uint8_t*)bridgeBuf, byteLen);
-        }
-    }
-
-  if (doConnect)
-  {
-    doConnect = false;
-    NimBLEDevice::getScan()->stop();
-    /** Found a device we want to connect to, do it now */
-    if (connectToServer())
-    {
-      Serial.printf("Success! we should now be getting notifications\n");
-    }
-    else
-    {
-      Serial.printf("Failed to connect\n");
-      delay(1000);
-      NimBLEDevice::getScan()->start(scanTimeMs, false, true);
-    }
-  }
 }
