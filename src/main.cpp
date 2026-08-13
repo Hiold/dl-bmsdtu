@@ -11,12 +11,30 @@
 #include <NimBLEDevice.h>
 #include <config.h>
 #include "uart/UARTHandler.h"
+#include "driver/uart.h"
+#include "esp_sleep.h"
+#include "esp32c3/rom/uart.h"
 
 static bool isConnect = false;
 UARTHandler uart;
 static uint32_t scanTimeMs = 5000; /** scan time in milliseconds, 0 = scan forever */
 static NimBLERemoteCharacteristic *pChr = nullptr;
 static NimBLERemoteCharacteristic *pChr2 = nullptr;
+
+void enter_light_sleep(void)
+{
+  // 在进入睡眠前，必须等待 UART 发送空闲（如果 TX 正在发送）
+  uart_wait_tx_done(UART_NUM_0, portMAX_DELAY);
+
+  // 进入浅睡眠（会被 UART 唤醒）
+  printf("进入浅睡眠...\n");
+  digitalWrite(LED_PIN, HIGH);
+  esp_light_sleep_start();
+
+  // 从睡眠返回（被唤醒后继续执行）
+  printf("被唤醒！\n");
+  digitalWrite(LED_PIN, LOW);
+}
 
 // const char *TARGET_MAC = "6c:09:3b:8a:b6:5c";
 
@@ -94,7 +112,7 @@ bool connectToServer()
 {
   if (isConnect)
   {
-    Serial.printf("Already Connected, Do Nothing");
+    Serial.printf("Already Connected, Do Nothing\n");
     return true;
   }
   NimBLEClient *pClient = nullptr;
@@ -103,7 +121,7 @@ bool connectToServer()
     pClient = NimBLEDevice::createClient();
     if (pClient)
     {
-      if (!pClient->connect(NimBLEAddress(TARGET_MAC, BLE_ADDR_RANDOM), false))
+      if (!pClient->connect(NimBLEAddress(TARGET_MAC, BLE_ADDR_PUBLIC), false))
       {
         Serial.printf("Reconnect failed\n");
         return false;
@@ -145,7 +163,7 @@ bool connectToServer()
     /** Set how long we are willing to wait for the connection to complete (milliseconds), default is 30000. */
     pClient->setConnectTimeout(5 * 1000);
 
-    if (!pClient->connect(NimBLEAddress(TARGET_MAC, BLE_ADDR_RANDOM)))
+    if (!pClient->connect(NimBLEAddress(TARGET_MAC, BLE_ADDR_PUBLIC)))
     {
       /** Created a client but failed to connect, don't need to keep it as it has no data */
       NimBLEDevice::deleteClient(pClient);
@@ -156,7 +174,7 @@ bool connectToServer()
 
   if (!pClient->isConnected())
   {
-    if (!pClient->connect(NimBLEAddress(TARGET_MAC, BLE_ADDR_RANDOM)))
+    if (!pClient->connect(NimBLEAddress(TARGET_MAC, BLE_ADDR_PUBLIC)))
     {
       Serial.printf("Failed to connect\n");
       return false;
@@ -228,6 +246,7 @@ bool connectToServer()
     return false;
   }
   Serial.printf("All Done with this device!\n");
+  enter_light_sleep();
   return true;
 }
 
@@ -297,6 +316,9 @@ void hearbeat(void *arg)
 
 void setup()
 {
+
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
   Serial.begin(115200);
   uart.begin(UART_BAUD);
   delay(500);
@@ -318,7 +340,7 @@ void setup()
   // 创建链接蓝牙任务
   xTaskCreate(connect, "connect", 2048, NULL, 1, NULL);
   xTaskCreate(scanSerialInput, "light_flash", 2048, NULL, 1, NULL);
-  xTaskCreate(hearbeat, "hearbeat", 2048, NULL, 1, NULL);
+  //xTaskCreate(hearbeat, "hearbeat", 2048, NULL, 1, NULL);
 }
 
 // 不使用loop
